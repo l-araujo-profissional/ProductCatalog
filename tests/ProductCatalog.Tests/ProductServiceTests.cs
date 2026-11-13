@@ -90,6 +90,37 @@ public class ProductServiceTests
         result.AvailableStock.Should().Be(3);
     }
 
+    [Theory]
+    [InlineData("19.9", "19.90")]
+    [InlineData("19", "19.00")]
+    [InlineData("19.990", "19.99")] // trailing zero is not extra precision
+    [InlineData("0.01", "0.01")]
+    public async Task Create_FixesThePriceScaleAtTwoDecimals_SoItMatchesWhatTheDatabaseReturns(string sent, string expectedText)
+    {
+        _repo.AddAsync(Arg.Any<Product>(), Arg.Any<CancellationToken>()).Returns(call => call.Arg<Product>());
+
+        var result = await _sut.CreateAsync(new ProductRequest
+        {
+            Name = "X",
+            Price = decimal.Parse(sent, System.Globalization.CultureInfo.InvariantCulture),
+            Stock = 1
+        });
+
+        // ToString keeps the scale of a decimal, and so does the JSON serializer.
+        result.Price.ToString(System.Globalization.CultureInfo.InvariantCulture).Should().Be(expectedText);
+    }
+
+    [Fact]
+    public async Task Update_FixesThePriceScaleAtTwoDecimalsBeforeSaving()
+    {
+        _repo.UpdateAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<decimal>(), Arg.Any<int>(), Arg.Any<byte[]?>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Product { Id = 100001, Name = "X", Price = call.ArgAt<decimal>(3), Stock = 1 });
+
+        var result = await _sut.UpdateAsync(100001, new ProductRequest { Name = "X", Price = 21.5m, Stock = 1 });
+
+        result.Price.ToString(System.Globalization.CultureInfo.InvariantCulture).Should().Be("21.50");
+    }
+
     [Fact]
     public async Task Update_WhenMissing_ThrowsNotFound()
     {

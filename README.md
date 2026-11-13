@@ -5,8 +5,9 @@ See [DECISIONS.md](DECISIONS.md) for the reasoning behind the main design choice
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- Docker (for SQL Server) — or any SQL Server instance (update the connection string)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (or newer; the project targets `net8.0`)
+- A SQL Server: **Docker** (used below), **SQL Server LocalDB** on Windows (see "Without Docker"), or any other instance
+  (update the connection string)
 - EF Core CLI tool, **only** if you change the model or want to apply migrations by hand:
   `dotnet tool install --global dotnet-ef`
 
@@ -35,6 +36,16 @@ Swagger UI: http://localhost:5000/swagger (served only in the `Development` envi
 
 The connection string in `appsettings.json` matches the credentials in `docker-compose.yml`
 (development only). Override it with the `ConnectionStrings__DefaultConnection` environment variable.
+
+### Without Docker (SQL Server LocalDB, Windows)
+
+LocalDB ships with Visual Studio (component "SQL Server Express LocalDB"); `sqllocaldb info` should list
+`MSSQLLocalDB`. In `src/ProductCatalog.Api/appsettings.json`, comment out the Docker `DefaultConnection` line and
+uncomment the LocalDB one provided just below it, then run `dotnet run --project src/ProductCatalog.Api` as above.
+Nothing else changes: the same migration and seed are applied. Skip `docker compose`.
+
+If the API cannot connect on the very first start (for example SQL Server in Docker is still booting), it exits
+at the migration step; wait a few seconds and start it again.
 
 ### Migrations
 
@@ -76,8 +87,9 @@ Every product in a response includes `availableStock` and a `rowVersion` token. 
 
 A price has **at most two decimal places** and lies between **0.01 and 1,000,000** (inclusive).
 A value such as `19.999` is rejected with 400; it is never rounded silently. The database column is
-`decimal(18,2)`, so what you send is exactly what is stored and returned. JSON numbers drop trailing zeros
-(`19.90` is returned as `19.9`); it is the same value, so format it on the client when displaying.
+`decimal(18,2)` and the service fixes the scale at two decimals before saving, so the value is the same at every
+step: sending `19.9` stores `19.90`, and every response (POST, PUT, GET, list, search) returns `19.90`.
+What you send is numerically exactly what is stored and returned.
 
 ### Updating a product (PUT) and concurrent changes
 
@@ -91,6 +103,7 @@ last read in the PUT body:
 | Two PUTs race, both with `rowVersion` | One succeeds, the other gets 409 |
 | `rowVersion` omitted, another change lands while this request is being processed | 409 (only a window of milliseconds is covered) |
 | `rowVersion` omitted, product was changed *before* this request started | **Not protected**: last write wins and stock is overwritten with the value sent |
+| `rowVersion` sent (stale), but the values sent are identical to what is stored now | 200, nothing is written (there is nothing to conflict with) |
 | Product deleted between the read and the PUT | 404, or 409 if the delete happens during the request |
 | Stock endpoints against each other | Safe: each is one atomic `UPDATE`; stock never goes below zero |
 

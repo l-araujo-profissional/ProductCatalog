@@ -36,7 +36,7 @@ public class ProductService(IProductRepository repository) : IProductService
         {
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
-            Price = request.Price!.Value,
+            Price = NormalizePrice(request.Price!.Value),
             Stock = request.Stock!.Value
         };
 
@@ -56,7 +56,7 @@ public class ProductService(IProductRepository repository) : IProductService
             id,
             request.Name.Trim(),
             request.Description?.Trim(),
-            request.Price!.Value,
+            NormalizePrice(request.Price!.Value),
             request.Stock!.Value,
             expectedRowVersion,
             ct) ?? throw NotFoundException.ForProduct(id);
@@ -103,6 +103,15 @@ public class ProductService(IProductRepository repository) : IProductService
 
         return (await repository.GetByStockRangeAsync(min, max, ct)).Select(ProductResponse.From).ToList();
     }
+
+    /// <summary>
+    /// Fixes the scale of a price at exactly two decimals (19.9 becomes 19.90), the same scale as the
+    /// <c>decimal(18,2)</c> column. Without this, the value echoed by POST/PUT (the in-memory 19.9) would be
+    /// written differently from the value a later GET returns (19.90 read from the database): numerically equal,
+    /// but a different JSON text. Input was already validated to have at most two decimals, so nothing is rounded.
+    /// </summary>
+    /// <param name="price">A validated price.</param>
+    private static decimal NormalizePrice(decimal price) => decimal.Round(price, 2) + 0.00m;
 
     /// <summary>Decodes the optional concurrency token sent by the client (<c>null</c> when absent).</summary>
     /// <param name="token">Base64 text previously returned in <c>rowVersion</c>.</param>

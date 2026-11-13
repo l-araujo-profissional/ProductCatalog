@@ -34,6 +34,7 @@ and a mismatch becomes **409**. A malformed token is a 400 and never reaches the
 | Two PUTs racing, both with `rowVersion` | Yes: exactly one wins, the other gets 409 |
 | PUT without `rowVersion`, change lands while the request is in flight | Yes, but only that millisecond window: 409 |
 | PUT without `rowVersion`, change made before the request started | **No**: last write wins, stock included |
+| PUT with a stale `rowVersion` whose values equal the stored ones | No conflict is raised: EF sends no `UPDATE` when nothing changed, and the outcome is exactly what the client asked for |
 | Stock endpoint vs stock endpoint | Yes: single atomic `UPDATE`, no token needed (additions and removals commute) |
 | Stock endpoint vs PUT | Only if the PUT carries `rowVersion` |
 | PUT vs DELETE | PUT after the delete: 404. Delete during the PUT: 409 (zero rows updated raises the same exception). DELETE itself is unconditional, so it always wins |
@@ -65,12 +66,17 @@ One rule, applied identically at the three levels: **at most 2 decimal places, f
 |---|---|
 | API input | `[Range]` for the bounds plus `[MaxDecimalPlaces(2)]`; more decimals is a 400 |
 | Database | `decimal(18,2)` and `CHECK (Price > 0)`, equivalent to `>= 0.01` at two decimals |
-| Response | `Price` is the stored `decimal`; as a JSON number it has no trailing zeros (`19.90` -> `19.9`), same value |
+| Response | `Price` is a `decimal` with scale 2 everywhere: read from the column, or normalised by the service on POST/PUT (`19.9` sent -> `19.90` returned) |
 
 Review finding: `19.999` used to pass validation. The database column keeps two decimals, while the `POST` response
 echoed the in-memory `19.999`, so `POST` and a later `GET` could disagree (whether the provider rounds or truncates
 is a detail we deliberately do not depend on). Rejecting extra decimals, instead of rounding them, means money is never
 changed silently and what the client sends is exactly what is stored and returned.
+Second review finding: the documentation claimed JSON drops trailing zeros. It does not: `decimal` keeps its scale when
+serialised, so `POST`/`PUT` (which echo the in-memory value, e.g. `19.9`) and `GET` (which returns the scale-2 value from
+the column, `19.90`) differed in text although equal in value. `ProductService` now fixes the scale at two decimals
+(`decimal.Round(price, 2) + 0.00m`) before saving, which is safe because input with more than two real decimals was
+already rejected. Covered by unit tests; the JSON text itself is easiest to confirm in Swagger.
 The 1,000,000 ceiling is an API business rule only; the column is wider. Enforcing it in the database too would need a
 new migration and was not considered worth it. The range limits are parsed with the invariant culture so machines
 with a decimal comma (pt-PT) behave the same.

@@ -15,9 +15,12 @@
   <ItemGroup>
     <!-- SQL Server provider for EF Core (also brings in EF Core itself). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
-	<!-- Adds the Add-Migration / Update-Database commands to the Visual Studio Package Manager Console.
-     Design-time only: it is not needed to run the API. -->
-	<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10" />
+    <!-- Adds the Add-Migration / Update-Database commands to the Visual Studio Package Manager Console.
+         Design-time only: it is not needed to run the API, so it is not passed on to referencing projects. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <!-- Design-time tooling used by `dotnet ef migrations ...`; not shipped with the app. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
       <PrivateAssets>all</PrivateAssets>
