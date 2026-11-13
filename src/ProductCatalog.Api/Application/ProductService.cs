@@ -12,6 +12,9 @@ namespace ProductCatalog.Api.Application;
 /// <param name="repository">Data-access abstraction for products.</param>
 public class ProductService(IProductRepository repository) : IProductService
 {
+    // SQL Server rowversion is always 8 bytes.
+    private const int RowVersionLength = 8;
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<ProductResponse>> GetAllAsync(CancellationToken ct = default)
         => (await repository.GetAllAsync(ct)).Select(ProductResponse.From).ToList();
@@ -45,6 +48,9 @@ public class ProductService(IProductRepository repository) : IProductService
     /// <inheritdoc />
     public async Task<ProductResponse> UpdateAsync(int id, ProductRequest request, CancellationToken ct = default)
     {
+        // Rejects a malformed token before touching the database.
+        var expectedRowVersion = ParseRowVersion(request.RowVersion);
+
         // The repository returns null when the product does not exist.
         var updated = await repository.UpdateAsync(
             id,
@@ -52,6 +58,7 @@ public class ProductService(IProductRepository repository) : IProductService
             request.Description?.Trim(),
             request.Price!.Value,
             request.Stock!.Value,
+            expectedRowVersion,
             ct) ?? throw NotFoundException.ForProduct(id);
 
         return ProductResponse.From(updated);
@@ -95,6 +102,26 @@ public class ProductService(IProductRepository repository) : IProductService
             throw new BadRequestException("'min' must be less than or equal to 'max'.");
 
         return (await repository.GetByStockRangeAsync(min, max, ct)).Select(ProductResponse.From).ToList();
+    }
+
+    /// <summary>Decodes the optional concurrency token sent by the client (<c>null</c> when absent).</summary>
+    /// <param name="token">Base64 text previously returned in <c>rowVersion</c>.</param>
+    /// <exception cref="BadRequestException">The text is not a valid token.</exception>
+    private static byte[]? ParseRowVersion(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        try
+        {
+            var bytes = Convert.FromBase64String(token.Trim());
+            if (bytes.Length == RowVersionLength) return bytes;
+        }
+        catch (FormatException)
+        {
+            // Falls through to the error below.
+        }
+
+        throw new BadRequestException("'rowVersion' is not a valid token. Send the value returned by a previous read of the product.");
     }
 
     /// <summary>

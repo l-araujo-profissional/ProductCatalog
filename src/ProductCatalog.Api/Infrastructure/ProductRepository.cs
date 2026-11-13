@@ -25,18 +25,25 @@ public class ProductRepository(AppDbContext db) : IProductRepository
     }
 
     /// <inheritdoc />
-    public async Task<Product?> UpdateAsync(int id, string name, string? description, decimal price, int stock, CancellationToken ct = default)
+    public async Task<Product?> UpdateAsync(int id, string name, string? description, decimal price, int stock, byte[]? expectedRowVersion, CancellationToken ct = default)
     {
         // Load the tracked entity so EF generates an UPDATE that includes the RowVersion check.
         var entity = await db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (entity is null) return null;
+
+        // If the client sent the version it last read, compare against THAT instead of the version just loaded.
+        // Without this the check would only cover the few milliseconds of this request and a stale PUT
+        // would silently overwrite changes (e.g. stock) made after the client read the product.
+        if (expectedRowVersion is not null)
+            db.Entry(entity).Property(p => p.RowVersion).OriginalValue = expectedRowVersion;
 
         entity.Name = name;
         entity.Description = description;
         entity.Price = price;
         entity.Stock = stock;
 
-        // A concurrent modification raises DbUpdateConcurrencyException (RowVersion) -> HTTP 409.
+        // UPDATE ... WHERE Id = @id AND RowVersion = @original. Zero rows affected (changed or deleted meanwhile)
+        // raises DbUpdateConcurrencyException -> HTTP 409.
         await db.SaveChangesAsync(ct);
         return entity;
     }

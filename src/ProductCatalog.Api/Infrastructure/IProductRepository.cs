@@ -28,8 +28,13 @@ public interface IProductRepository
     /// <param name="description">New description.</param>
     /// <param name="price">New price.</param>
     /// <param name="stock">New stock.</param>
+    /// <param name="expectedRowVersion">
+    /// Concurrency token the caller last saw. When not <c>null</c> the update only succeeds if the row still has
+    /// this version (otherwise <see cref="Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException"/>);
+    /// when <c>null</c> only the short window between loading and saving the row is protected.
+    /// </param>
     /// <param name="ct">Token to cancel the operation.</param>
-    Task<Product?> UpdateAsync(int id, string name, string? description, decimal price, int stock, CancellationToken ct = default);
+    Task<Product?> UpdateAsync(int id, string name, string? description, decimal price, int stock, byte[]? expectedRowVersion, CancellationToken ct = default);
 
     /// <summary>Deletes a product; returns <c>false</c> if it did not exist.</summary>
     /// <param name="id">Product identifier.</param>

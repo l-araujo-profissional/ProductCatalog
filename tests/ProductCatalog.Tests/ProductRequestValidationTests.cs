@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using FluentAssertions;
 using ProductCatalog.Api.Contracts;
 
@@ -48,6 +49,26 @@ public class ProductRequestValidationTests
     [InlineData(-1)]
     public void NonPositivePrice_IsRejected(double price)
         => Validate(new ProductRequest { Name = "X", Price = (decimal)price, Stock = 1 })
+            .Should().Contain(r => r.MemberNames.Contains("Price"));
+
+    [Theory]
+    [InlineData("19.99")]
+    [InlineData("19.9")]
+    [InlineData("19")]
+    [InlineData("19.990")] // same value as 19.99: trailing zeros are not extra precision
+    [InlineData("0.01")]
+    [InlineData("1000000")]
+    public void PriceWithAtMostTwoDecimalsInsideTheRange_IsAccepted(string price)
+        => Validate(new ProductRequest { Name = "X", Price = decimal.Parse(price, CultureInfo.InvariantCulture), Stock = 1 })
+            .Should().BeEmpty();
+
+    [Theory]
+    [InlineData("19.999")] // would otherwise be reduced to two decimals by the database column
+    [InlineData("10.005")]
+    [InlineData("0.001")]
+    [InlineData("1000000.01")] // above the API limit
+    public void PriceWithMoreThanTwoDecimalsOrAboveTheLimit_IsRejected(string price)
+        => Validate(new ProductRequest { Name = "X", Price = decimal.Parse(price, CultureInfo.InvariantCulture), Stock = 1 })
             .Should().Contain(r => r.MemberNames.Contains("Price"));
 
     [Fact]

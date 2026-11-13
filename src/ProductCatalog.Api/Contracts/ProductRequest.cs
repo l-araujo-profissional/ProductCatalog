@@ -20,12 +20,15 @@ public class ProductRequest
     public string? Description { get; init; }
 
     /// <summary>
-    /// Unit price, between 0.01 and 1,000,000. Declared nullable so that a *missing* value is
+    /// Unit price, between 0.01 and 1,000,000 with at most two decimal places (the same precision as the
+    /// <c>decimal(18,2)</c> database column), so nothing is ever rounded silently: more than two decimals is
+    /// rejected with HTTP 400. Declared nullable so that a *missing* value is
     /// rejected by <c>[Required]</c> instead of silently defaulting to 0.
     /// The range limits are parsed with the invariant culture; without that, machines whose culture uses a
     /// decimal comma (e.g. pt-PT) would fail to parse "0.01" and validation would throw.
     /// </summary>
     [Required]
+    [MaxDecimalPlaces(2)]
     [Range(typeof(decimal), "0.01", "1000000",
         ParseLimitsInInvariantCulture = true,   // "0.01" is always parsed with a dot, whatever the machine's culture
         ConvertValueInInvariantCulture = true,  // the submitted value is converted the same way
@@ -38,4 +41,13 @@ public class ProductRequest
     [Required]
     [Range(0, int.MaxValue, ErrorMessage = "Stock must be zero or greater.")]
     public int? Stock { get; init; }
+
+    /// <summary>
+    /// Optimistic-concurrency token, used by PUT only (ignored on POST). Send back the <c>rowVersion</c> received
+    /// from the last read of the product: if the product changed since then (including stock changes made through
+    /// the stock endpoints) the update is refused with HTTP 409 instead of overwriting those changes.
+    /// When omitted the update is unconditional (last write wins, stock included).
+    /// </summary>
+    [StringLength(44)]
+    public string? RowVersion { get; init; }
 }

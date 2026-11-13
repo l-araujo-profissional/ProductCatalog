@@ -25,8 +25,9 @@ public interface IProductService
 
     /// <summary>Replaces all editable fields of an existing product.</summary>
     /// <param name="id">Product identifier.</param>
-    /// <param name="request">Validated product data.</param>
+    /// <param name="request">Validated product data, optionally with the <c>RowVersion</c> last read.</param>
     /// <param name="ct">Token to cancel the operation.</param>
+    /// <exception cref="Domain.BadRequestException">The <c>RowVersion</c> is not a valid token.</exception>
     /// <exception cref="Domain.NotFoundException">The product does not exist.</exception>
     Task<ProductResponse> UpdateAsync(int id, ProductRequest request, CancellationToken ct = default);
 

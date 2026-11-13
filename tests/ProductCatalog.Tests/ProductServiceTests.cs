@@ -94,12 +94,64 @@ public class ProductServiceTests
     public async Task Update_WhenMissing_ThrowsNotFound()
     {
         // The repository signals "no such product" by returning null.
-        _repo.UpdateAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<decimal>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _repo.UpdateAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<decimal>(), Arg.Any<int>(), Arg.Any<byte[]?>(), Arg.Any<CancellationToken>())
             .Returns((Product?)null);
 
         var act = () => _sut.UpdateAsync(999999, new ProductRequest { Name = "X", Price = 1m, Stock = 1 });
 
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    // A rowversion is 8 bytes; this one is arbitrary.
+    private static readonly byte[] Token = [0, 0, 0, 0, 0, 0, 0x07, 0xD1];
+    private static readonly string TokenText = Convert.ToBase64String(Token);
+
+    [Fact]
+    public async Task GetById_ExposesTheRowVersionAsBase64()
+    {
+        var product = Sample();
+        product.RowVersion = Token;
+        _repo.GetByIdAsync(100001, Arg.Any<CancellationToken>()).Returns(product);
+
+        var result = await _sut.GetByIdAsync(100001);
+
+        result.RowVersion.Should().Be(TokenText);
+    }
+
+    [Fact]
+    public async Task Update_WithRowVersion_PassesTheDecodedTokenToTheRepository()
+    {
+        _repo.UpdateAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<decimal>(), Arg.Any<int>(), Arg.Any<byte[]?>(), Arg.Any<CancellationToken>())
+            .Returns(Sample());
+
+        await _sut.UpdateAsync(100001, new ProductRequest { Name = "X", Price = 1m, Stock = 1, RowVersion = TokenText });
+
+        // The repository must receive the exact bytes the client sent, so the UPDATE can compare against them.
+        await _repo.Received(1).UpdateAsync(100001, "X", null, 1m, 1,
+            Arg.Is<byte[]?>(b => b != null && b.SequenceEqual(Token)), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Update_WithoutRowVersion_PassesNullToTheRepository()
+    {
+        _repo.UpdateAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<decimal>(), Arg.Any<int>(), Arg.Any<byte[]?>(), Arg.Any<CancellationToken>())
+            .Returns(Sample());
+
+        await _sut.UpdateAsync(100001, new ProductRequest { Name = "X", Price = 1m, Stock = 1 });
+
+        await _repo.Received(1).UpdateAsync(100001, "X", null, 1m, 1,
+            Arg.Is<byte[]?>(b => b == null), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("not base64!")]
+    [InlineData("AAAA")] // valid base64 but only 3 bytes, not a rowversion
+    public async Task Update_WithMalformedRowVersion_ThrowsBadRequestAndNeverTouchesTheRepository(string token)
+    {
+        var act = () => _sut.UpdateAsync(100001, new ProductRequest { Name = "X", Price = 1m, Stock = 1, RowVersion = token });
+
+        await act.Should().ThrowAsync<BadRequestException>();
+        await _repo.DidNotReceiveWithAnyArgs().UpdateAsync(default, default!, default, default, default, default, default);
     }
 
     [Fact]

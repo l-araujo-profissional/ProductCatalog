@@ -76,14 +76,19 @@ public class ProductsController(IProductService service) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    /// <summary>Replaces all editable fields of an existing product.</summary>
+    /// <summary>Replaces all editable fields of an existing product (stock included).</summary>
+    /// <remarks>
+    /// Include the <c>rowVersion</c> from your last read to be protected against overwriting changes made since
+    /// (price edits, stock endpoints, other PUTs): the request then fails with 409 and you should re-read and retry.
+    /// Without <c>rowVersion</c> the update is unconditional and replaces the stock with the value sent.
+    /// </remarks>
     /// <param name="id">Product identifier.</param>
-    /// <param name="request">New product data.</param>
+    /// <param name="request">New product data, optionally with the <c>rowVersion</c> last read.</param>
     /// <param name="ct">Cancelled automatically if the client disconnects.</param>
     /// <response code="200">The updated product.</response>
-    /// <response code="400">Validation failed.</response>
+    /// <response code="400">Validation failed (including a malformed <c>rowVersion</c>).</response>
     /// <response code="404">No product has this id.</response>
-    /// <response code="409">The product was modified concurrently by another request.</response>
+    /// <response code="409">The product changed (or was deleted) since the supplied <c>rowVersion</c> was read, or concurrently with this request.</response>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(ProductResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
