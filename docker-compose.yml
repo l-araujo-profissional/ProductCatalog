@@ -1,0 +1,16 @@
+# Local SQL Server used by the API. Start it with: docker compose up -d
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: productcatalog-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      # Development-only credentials; they must match the connection string in appsettings.json.
+      MSSQL_SA_PASSWORD: "Your_password123"
+    ports:
+      - "1433:1433"
+    volumes:
+      # Named volume so data survives container restarts.
+      - sqldata:/var/opt/mssql
+volumes:
+  sqldata:

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test host and runner integration. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <!-- xUnit: test framework. -->
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- NSubstitute: creates mocks of interfaces (repository, service). -->
+    <PackageReference Include="NSubstitute" Version="5.1.0" />
+    <!-- FluentAssertions: readable assertions (pinned to 6.x, which is free for commercial use). -->
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Global using for xUnit, so [Fact], [Theory] and [InlineData] resolve in every test file
+         without repeating "using Xunit;" (the standard xUnit project template does the same). -->
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Makes the ASP.NET Core types (ControllerBase, ActionResult, ...) available to the tests,
+         which use Microsoft.NET.Sdk and therefore do not get them by default. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The API project under test. -->
+    <ProjectReference Include="..\..\src\ProductCatalog.Api\ProductCatalog.Api.csproj" />
+  </ItemGroup>
+
+</Project>

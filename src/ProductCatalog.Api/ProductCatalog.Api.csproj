@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Nullable reference types: the compiler warns about possible null dereferences. -->
+    <Nullable>enable</Nullable>
+    <!-- Common namespaces (System, System.Linq, Microsoft.AspNetCore.Http, ...) are imported automatically. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Emit the XML documentation file so Swagger UI can show the /// comments. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591 = "missing XML comment"; silenced for the few members that need none (e.g. Program). -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SQL Server provider for EF Core (also brings in EF Core itself). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
+	<!-- Adds the Add-Migration / Update-Database commands to the Visual Studio Package Manager Console.
+     Design-time only: it is not needed to run the API. -->
+	<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10" />
+    <!-- Design-time tooling used by `dotnet ef migrations ...`; not shipped with the app. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- OpenAPI/Swagger generator and UI. -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+</Project>
